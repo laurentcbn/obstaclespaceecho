@@ -5,6 +5,11 @@ on:
     tags:
       - 'v*'          # déclenché par: git tag v1.0.0 && git push --tags
   workflow_dispatch:  # lancement manuel depuis GitHub Actions
+    inputs:
+      version:
+        description: 'Version tag (ex: v1.0.0) — laisse vide pour build sans release'
+        required: false
+        default: ''
 
 jobs:
   build-macos:
@@ -32,30 +37,44 @@ jobs:
       - name: Build all formats
         run: cmake --build build --config Release --parallel $(sysctl -n hw.logicalcpu)
 
+      - name: Resolve version tag
+        id: version
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            echo "tag=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          elif [[ -n "${{ inputs.version }}" ]]; then
+            echo "tag=${{ inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "tag=" >> $GITHUB_OUTPUT
+          fi
+
       - name: Package artifacts
         run: |
+          VERSION="${{ steps.version.outputs.tag }}"
+          LABEL="${VERSION:-dev}"
           mkdir -p dist
           cp -r "build/SpaceEcho_artefacts/Release/VST3/Obstacle Space Echo.vst3" dist/
           cp -r "build/SpaceEcho_artefacts/Release/AU/Obstacle Space Echo.component" dist/
           cp -r "build/SpaceEcho_artefacts/Release/Standalone/Obstacle Space Echo.app" dist/
           cd dist
-          zip -r "../Obstacle-Space-Echo-macOS-${{ github.ref_name }}.zip" .
+          zip -r "../Obstacle-Space-Echo-macOS-${LABEL}.zip" .
 
       - name: Create GitHub Release
+        if: steps.version.outputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
-          name: "Obstacle Space Echo ${{ github.ref_name }}"
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: "Obstacle Space Echo ${{ steps.version.outputs.tag }}"
           body: |
-            ## Obstacle Space Echo ${{ github.ref_name }}
+            ## Obstacle Space Echo ${{ steps.version.outputs.tag }}
 
             ### Installation
             - **VST3** → `~/Library/Audio/Plug-Ins/VST3/`
             - **AU**   → `~/Library/Audio/Plug-Ins/Components/`
             - **Standalone** → double-clic pour tester sans DAW
 
-            ### Changelog
-            See [README](https://github.com/laurentcbn/obstaclespaceecho#readme)
-          files: Obstacle-Space-Echo-macOS-${{ github.ref_name }}.zip
+            See [README](https://github.com/laurentcbn/obstaclespaceecho#readme) for full documentation.
+          files: Obstacle-Space-Echo-macOS-${{ steps.version.outputs.tag }}.zip
           draft: false
           prerelease: false
         env:

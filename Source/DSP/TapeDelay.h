@@ -60,6 +60,9 @@ public:
         hpState.fill (0.0f);
     }
 
+    /** When frozen, the write head stops — the buffer loops infinitely. */
+    void setFrozen (bool shouldFreeze) noexcept { frozen = shouldFreeze; }
+
     /**
      *  Process one sample.
      *  @param input            Dry input sample
@@ -90,7 +93,8 @@ public:
 
         // ── Write (record head) ───────────────────────────────────────
         float toWrite = saturate (input + feedbackSignal, saturationAmt);
-        buffer[writePos] = toWrite;
+        if (! frozen)
+            buffer[writePos] = toWrite;
 
         // ── Read (playback heads) ─────────────────────────────────────
         HeadOutputs out;
@@ -120,6 +124,7 @@ private:
     int  bufferSize = 0;
     int  writePos   = 0;
     double sampleRate = 44100.0;
+    bool frozen = false;
 
     float wowPhase = 0.f,  wowInc = 0.f;
     float flutterPhase = 0.f, flutterInc = 0.f;

@@ -2,6 +2,8 @@
 #include <JuceHeader.h>
 #include "DSP/TapeDelay.h"
 #include "DSP/SpringReverb.h"
+#include "DSP/TapeNoise.h"
+#include "DSP/ShimmerChorus.h"
 #include <array>
 #include <atomic>
 
@@ -17,6 +19,9 @@ public:
 
     // 12 modes: matches Roland RE-201 mode dial
     static const ModeConfig MODE_TABLE[12];
+
+    // ── Oscilloscope ring buffer ──────────────────────────────────────
+    static constexpr int SCOPE_SIZE = 512;
 
     // ── Construction ─────────────────────────────────────────────────────
     SpaceEchoAudioProcessor();
@@ -60,10 +65,16 @@ public:
     void setTestTone (bool enabled) noexcept { testToneEnabled.store (enabled); }
     bool isTestToneEnabled() const noexcept  { return testToneEnabled.load(); }
 
+    // ── Oscilloscope data access (UI reads at 30 Hz) ───────────────────────
+    const float* getScopeBuffer()   const noexcept { return scopeBuffer.data(); }
+    int          getScopeWritePos() const noexcept { return scopeWritePos.load (std::memory_order_relaxed); }
+
 private:
     // ── DSP objects ───────────────────────────────────────────────────────
     TapeDelay    tapeL, tapeR;
     SpringReverb springL, springR;
+    TapeNoise    noiseL, noiseR;
+    ShimmerChorus shimmerL, shimmerR;
 
     // Bass / treble IIR shelving filters (on the echo feedback path)
     juce::dsp::IIR::Filter<float> bassL,   bassR;
@@ -84,6 +95,10 @@ private:
     // ── Level meters ──────────────────────────────────────────────────────
     std::atomic<float> inputLevelL  { 0.f };
     std::atomic<float> outputLevelL { 0.f };
+
+    // ── Oscilloscope ring buffer (audio writes, UI reads) ─────────────────
+    std::array<float, SCOPE_SIZE> scopeBuffer = {};
+    std::atomic<int>              scopeWritePos { 0 };
 
     // ── Helpers ───────────────────────────────────────────────────────────
     void updateEQ (float bassDb, float trebleDb);

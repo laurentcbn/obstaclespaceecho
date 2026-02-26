@@ -43,6 +43,7 @@ SpaceEchoAudioProcessor::createParameterLayout()
                 juce::ParameterID { id, 1 }, name, range, def));
     };
 
+    // Original parameters
     makeFloat ("inputGain",   "Input Gain",   0.0f,  1.0f,  0.70f);
     makeFloat ("repeatRate",  "Repeat Rate",  20.f,  500.f, 150.f,
                [] (float v, int) { return juce::String (static_cast<int> (v)) + " ms"; });
@@ -56,8 +57,18 @@ SpaceEchoAudioProcessor::createParameterLayout()
     makeFloat ("wowFlutter",  "Wow / Flutter",0.0f,  1.0f,  0.30f);
     makeFloat ("saturation",  "Saturation",   0.0f,  1.0f,  0.30f);
 
+    // Mode (int)
     params.push_back (std::make_unique<juce::AudioParameterInt> (
         juce::ParameterID { "mode", 1 }, "Mode", 0, 11, 0));
+
+    // ── New v1.1 parameters ───────────────────────────────────────────
+    makeFloat ("tapeNoise", "Tape Noise",  0.0f, 1.0f, 0.15f);
+    makeFloat ("shimmer",   "Shimmer",     0.0f, 1.0f, 0.0f);
+
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "freeze",   1 }, "Freeze",    false));
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "pingpong", 1 }, "Ping-Pong", false));
 
     return { params.begin(), params.end() };
 }
@@ -90,6 +101,12 @@ void SpaceEchoAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPer
     springL.prepare (sampleRate);
     springR.prepare (sampleRate);
 
+    noiseL.prepare (sampleRate);
+    noiseR.prepare (sampleRate);
+
+    shimmerL.prepare (sampleRate);
+    shimmerR.prepare (sampleRate);
+
     // Prepare shelving filters
     juce::dsp::ProcessSpec spec { sampleRate, 512, 1 };
     bassL.prepare  (spec); bassL.reset();
@@ -99,12 +116,18 @@ void SpaceEchoAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPer
 
     // Apply initial EQ (flat)
     updateEQ (0.f, 0.f);
+
+    // Clear scope buffer
+    scopeBuffer.fill (0.f);
+    scopeWritePos.store (0, std::memory_order_relaxed);
 }
 
 void SpaceEchoAudioProcessor::releaseResources()
 {
     tapeL.reset(); tapeR.reset();
     springL.reset(); springR.reset();
+    noiseL.reset(); noiseR.reset();
+    shimmerL.reset(); shimmerR.reset();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -131,7 +154,7 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
 {
     juce::ScopedNoDenormals noDenormals;
 
-    // ── Read parameters (from UI thread, atomic) ─────────────────────
+    // ── Read parameters ───────────────────────────────────────────────
     const float inputGain   = *apvts.getRawParameterValue ("inputGain");
     const float repeatRateMs= *apvts.getRawParameterValue ("repeatRate");
     const float intensity   = *apvts.getRawParameterValue ("intensity");
@@ -142,17 +165,25 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const float bassDb      = *apvts.getRawParameterValue ("bass");
     const float trebleDb    = *apvts.getRawParameterValue ("treble");
     const int   mode        = static_cast<int> (*apvts.getRawParameterValue ("mode"));
+    const float tapeNoise   = *apvts.getRawParameterValue ("tapeNoise");
+    const float shimmer     = *apvts.getRawParameterValue ("shimmer");
+    const bool  frozen      = *apvts.getRawParameterValue ("freeze")   > 0.5f;
+    const bool  pingpong    = *apvts.getRawParameterValue ("pingpong") > 0.5f;
 
-    // ── EQ update (once per block — cheap) ───────────────────────────
+    // ── Apply freeze to tape delay ────────────────────────────────────
+    tapeL.setFrozen (frozen);
+    tapeR.setFrozen (frozen);
+
+    // ── EQ update (once per block) ────────────────────────────────────
     updateEQ (bassDb, trebleDb);
 
-    // ── Spring reverb size/damp tied to mode selection ───────────────
+    // ── Spring reverb parameters ──────────────────────────────────────
     springL.setSize    (0.65f);
     springR.setSize    (0.65f);
     springL.setDamping (0.35f);
     springR.setDamping (0.35f);
 
-    // ── Mode config ──────────────────────────────────────────────────
+    // ── Mode config ───────────────────────────────────────────────────
     const auto& mc = MODE_TABLE[juce::jlimit (0, 11, mode)];
 
     int numActiveHeads = 0;
@@ -175,13 +206,14 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     float inAcc = 0.f, outAcc = 0.f;
 
     // ── Test tone params ──────────────────────────────────────────────
-    const bool   testOn      = testToneEnabled.load();
-    const float  sr_f        = static_cast<float> (currentSampleRate);
-    // Pulse every 1.5 s, short attack + decay (envelope)
-    const float  pulseLen    = sr_f * 1.5f;
-    const float  noteFreq1   = 440.f;  // A4
-    const float  noteFreq2   = 554.f;  // C#5  → A major chord
-    const float  envDecay    = std::exp (-6.f / sr_f); // ~200 ms decay
+    const bool   testOn    = testToneEnabled.load();
+    const float  sr_f      = static_cast<float> (currentSampleRate);
+    const float  pulseLen  = sr_f * 1.5f;
+    const float  noteFreq1 = 440.f; // A4
+    const float  noteFreq2 = 554.f; // C#5 → A major chord
+
+    // ── Scope write position ──────────────────────────────────────────
+    int scopePos = scopeWritePos.load (std::memory_order_relaxed);
 
     // ── Sample loop ───────────────────────────────────────────────────
     for (int i = 0; i < buffer.getNumSamples(); ++i)
@@ -189,10 +221,9 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         float inL = left[i]  * inputGain;
         float inR = right[i] * inputGain;
 
-        // ── Test tone injection ───────────────────────────────────────
+        // ── Test tone ─────────────────────────────────────────────────
         if (testOn)
         {
-            // Advance pulse counter and retrigger
             testToneTrigger += 1.f;
             if (testToneTrigger >= pulseLen)
             {
@@ -201,12 +232,10 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
                 testTonePhase2  = 0.f;
             }
 
-            // Envelope: sharp attack, exponential decay
             const float env = (testToneTrigger < 4.f)
                               ? (testToneTrigger * 0.25f)
                               : std::exp (-5.f * testToneTrigger / sr_f);
 
-            // Two sine oscillators
             const float s1 = std::sin (testTonePhase  * juce::MathConstants<float>::twoPi);
             const float s2 = std::sin (testTonePhase2 * juce::MathConstants<float>::twoPi);
             testTonePhase  += noteFreq1 / sr_f;
@@ -219,13 +248,17 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             inR += tone;
         }
 
+        // ── Tape noise injection ──────────────────────────────────────
+        inL += noiseL.process (tapeNoise);
+        inR += noiseR.process (tapeNoise);
+
         inAcc += std::abs (inL);
 
-        // ── Tape delay ───────────────────────────────────────────────
+        // ── Tape delay ────────────────────────────────────────────────
         auto headsL = tapeL.process (inL, baseDelaySamples, feedbackL, wowFlutter, saturation);
         auto headsR = tapeR.process (inR, baseDelaySamples, feedbackR, wowFlutter, saturation);
 
-        // ── Sum active heads ─────────────────────────────────────────
+        // ── Sum active heads ──────────────────────────────────────────
         float echoL = 0.f, echoR = 0.f;
         for (int h = 0; h < TapeDelay::NUM_HEADS; ++h)
         {
@@ -241,32 +274,54 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
             echoR /= static_cast<float> (numActiveHeads);
         }
 
-        // ── Bass / treble EQ on echo (inside feedback path) ──────────
+        // ── Bass / treble EQ on echo ──────────────────────────────────
         echoL = bassL.processSample   (echoL);
         echoL = trebleL.processSample (echoL);
         echoR = bassR.processSample   (echoR);
         echoR = trebleR.processSample (echoR);
 
-        // ── Update feedback for next sample ──────────────────────────
-        feedbackL = echoL * intensity;
-        feedbackR = echoR * intensity;
+        // ── Update feedback (with optional ping-pong cross-feed) ──────
+        if (pingpong)
+        {
+            // Cross-feed: L feedback gets R echo, and vice versa
+            feedbackL = echoR * intensity;
+            feedbackR = echoL * intensity;
+        }
+        else
+        {
+            feedbackL = echoL * intensity;
+            feedbackR = echoR * intensity;
+        }
 
-        // ── Spring reverb (fed from dry input) ───────────────────────
+        // ── Spring reverb ─────────────────────────────────────────────
         float revL = 0.f, revR = 0.f;
         if (mc.reverb)
         {
             revL = springL.process (inL + echoL * 0.15f);
             revR = springR.process (inR + echoR * 0.15f);
+
+            // Shimmer chorus on reverb tail
+            if (shimmer > 0.001f)
+            {
+                revL += shimmerL.process (revL, shimmer);
+                revR += shimmerR.process (revR, shimmer);
+            }
         }
 
-        // ── Output mix ───────────────────────────────────────────────
+        // ── Output mix ────────────────────────────────────────────────
         const float outL = inL + echoL * echoLevel + revL * reverbLevel;
         const float outR = inR + echoR * echoLevel + revR * reverbLevel;
 
         left[i]  = outL;
         right[i] = outR;
         outAcc  += std::abs (outL);
+
+        // ── Write to scope buffer (left channel only) ─────────────────
+        scopeBuffer[scopePos] = outL;
+        scopePos = (scopePos + 1) % SCOPE_SIZE;
     }
+
+    scopeWritePos.store (scopePos, std::memory_order_relaxed);
 
     const float inv = 1.f / static_cast<float> (std::max (1, buffer.getNumSamples()));
     inputLevelL .store (inAcc  * inv);

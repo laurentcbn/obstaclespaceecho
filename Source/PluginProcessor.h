@@ -13,26 +13,23 @@ public:
     // ── Mode table ──────────────────────────────────────────────────────
     struct ModeConfig
     {
-        bool heads[TapeDelay::NUM_HEADS]; ///< which playback heads are active
-        bool reverb;                       ///< spring reverb active
+        bool heads[TapeDelay::NUM_HEADS];
+        bool reverb;
     };
 
-    // 12 modes: matches Roland RE-201 mode dial
     static const ModeConfig MODE_TABLE[12];
 
-    // ── Oscilloscope ring buffer ──────────────────────────────────────
+    // ── Oscilloscope ring buffer size ─────────────────────────────────
     static constexpr int SCOPE_SIZE = 512;
 
-    // ── Construction ─────────────────────────────────────────────────────
+    // ── Construction ──────────────────────────────────────────────────
     SpaceEchoAudioProcessor();
     ~SpaceEchoAudioProcessor() override;
 
-    // ── AudioProcessor interface ──────────────────────────────────────────
+    // ── AudioProcessor interface ──────────────────────────────────────
     void prepareToPlay  (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
-
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
     juce::AudioProcessorEditor* createEditor() override;
@@ -44,64 +41,86 @@ public:
     bool isMidiEffect()  const override { return false; }
     double getTailLengthSeconds() const override { return 3.0; }
 
-    int  getNumPrograms()             override { return 1; }
-    int  getCurrentProgram()          override { return 0; }
-    void setCurrentProgram (int)      override {}
+    int  getNumPrograms()               override { return 1; }
+    int  getCurrentProgram()            override { return 0; }
+    void setCurrentProgram (int)        override {}
     const juce::String getProgramName (int) override { return {}; }
     void changeProgramName (int, const juce::String&) override {}
 
-    void getStateInformation (juce::MemoryBlock& destData) override;
-    void setStateInformation (const void* data, int sizeInBytes) override;
+    void getStateInformation (juce::MemoryBlock&) override;
+    void setStateInformation (const void*, int) override;
 
-    // ── Parameter tree ────────────────────────────────────────────────────
+    // ── Parameter tree ────────────────────────────────────────────────
     juce::AudioProcessorValueTreeState apvts;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
-    // ── Metering (UI reads these) ─────────────────────────────────────────
+    // ── Metering ──────────────────────────────────────────────────────
     float getInputLevel()  const noexcept { return inputLevelL.load(); }
     float getOutputLevel() const noexcept { return outputLevelL.load(); }
 
-    // ── Test tone (UI toggles this) ───────────────────────────────────────
-    void setTestTone (bool enabled) noexcept { testToneEnabled.store (enabled); }
-    bool isTestToneEnabled() const noexcept  { return testToneEnabled.load(); }
+    // ── Test tone ─────────────────────────────────────────────────────
+    void setTestTone (bool e) noexcept { testToneEnabled.store (e); }
+    bool isTestToneEnabled() const noexcept { return testToneEnabled.load(); }
 
-    // ── Oscilloscope data access (UI reads at 30 Hz) ───────────────────────
+    // ── Oscilloscope (UI reads at ~30 Hz) ────────────────────────────
     const float* getScopeBuffer()   const noexcept { return scopeBuffer.data(); }
-    int          getScopeWritePos() const noexcept { return scopeWritePos.load (std::memory_order_relaxed); }
+    int          getScopeWritePos() const noexcept
+        { return scopeWritePos.load (std::memory_order_relaxed); }
 
 private:
-    // ── DSP objects ───────────────────────────────────────────────────────
+    // ── DSP objects ───────────────────────────────────────────────────
     TapeDelay    tapeL, tapeR;
     SpringReverb springL, springR;
     TapeNoise    noiseL, noiseR;
-    ShimmerChorus shimmerL, shimmerR;
+    ShimmerChorus shimmerL, shimmerR; // granular +1-octave pitch shifter
 
-    // Bass / treble IIR shelving filters (on the echo feedback path)
+    // IIR shelving EQ (inside feedback path)
     juce::dsp::IIR::Filter<float> bassL,   bassR;
     juce::dsp::IIR::Filter<float> trebleL, trebleR;
+    float cachedBassDb   = 9999.f; // for change detection
+    float cachedTrebleDb = 9999.f;
 
-    // Feedback state (one-sample delay, maintained across calls)
+    // One-sample feedback
     float feedbackL = 0.f, feedbackR = 0.f;
 
-    // Cached sample rate
+    // Shimmer feedback (pitch-shifted reverb tail fed back into reverb input)
+    float shimFeedL = 0.f, shimFeedR = 0.f;
+
     double currentSampleRate = 44100.0;
 
-    // ── Test tone oscillator ───────────────────────────────────────────────
-    std::atomic<bool> testToneEnabled { false };
-    float testTonePhase    = 0.f; // 0..1
-    float testTonePhase2   = 0.f; // second note for chord
-    float testToneTrigger  = 0.f; // envelope counter (samples)
+    // ── Per-sample parameter smoothing (eliminates zipper noise) ─────
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smInputGain;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smIntensity;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smEchoLevel;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smReverbLevel;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smWowFlutter;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smSaturation;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smTapeNoise;
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smShimmer;
 
-    // ── Level meters ──────────────────────────────────────────────────────
+    // ── Test tone ─────────────────────────────────────────────────────
+    std::atomic<bool> testToneEnabled { false };
+    float testTonePhase   = 0.f;
+    float testTonePhase2  = 0.f;
+    float testToneTrigger = 0.f;
+
+    // ── Level meters ──────────────────────────────────────────────────
     std::atomic<float> inputLevelL  { 0.f };
     std::atomic<float> outputLevelL { 0.f };
 
-    // ── Oscilloscope ring buffer (audio writes, UI reads) ─────────────────
+    // ── Oscilloscope ring buffer ──────────────────────────────────────
     std::array<float, SCOPE_SIZE> scopeBuffer = {};
     std::atomic<int>              scopeWritePos { 0 };
 
-    // ── Helpers ───────────────────────────────────────────────────────────
+    // ── Helpers ───────────────────────────────────────────────────────
     void updateEQ (float bassDb, float trebleDb);
+
+    /** Soft clipper: tanh-based, transparent below ~0 dBFS, hard limit above. */
+    static float softClip (float x) noexcept
+    {
+        // Gain staging: reduce to ~0.9 to leave headroom, then tanh
+        return std::tanh (x * 0.9f) / 0.9f;
+    }
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SpaceEchoAudioProcessor)
 };

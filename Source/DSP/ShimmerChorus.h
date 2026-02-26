@@ -1,107 +1,112 @@
 #pragma once
 #include <JuceHeader.h>
-#include <vector>
 #include <array>
 #include <cmath>
 
 /**
- *  ShimmerChorus — 4-voice long-delay modulated chorus that adds an
- *  ethereal, shimmering character to the spring reverb tail.
+ *  ShimmerChorus — Granular pitch shifter (+1 octave) for shimmer reverb.
  *
- *  Each voice:
- *   • Delay 35–80 ms (slightly detuned per voice)
- *   • Slow LFO 0.05–0.17 Hz for lush modulation
- *   • Mild feedback (0.45) building into shimmer
- *   • Linear interpolation for smooth modulation
+ *  Algorithm: two overlapping grains, each reading the delay buffer at 2×
+ *  speed (= +1 octave), windowed with Hanning to avoid clicks at crossfades.
  *
- *  amount 0..1  (0 = bypass, 1 = full effect)
+ *  Two grains are offset by half a grain cycle so their windows complement
+ *  each other — when one fades in the other fades out, giving a continuous
+ *  output with no silent gaps.
+ *
+ *  This is the same core algorithm as Valhalla's pitch-shifted reverbs.
+ *
+ *  Usage inside shimmer reverb:
+ *    // Each sample:
+ *    revL = spring.process(dry + shimmerFeedback);
+ *    shimmerFeedback = shifter.process(revL) * amount;
+ *
+ *  amount 0..1
  */
 class ShimmerChorus
 {
 public:
-    static constexpr int NUM_VOICES = 4;
+    static constexpr int GRAIN = 4096;  // ~93 ms at 44.1 kHz — smooth crossfades
+    static constexpr int BUF   = GRAIN * 4; // circular buffer, must be > 3×GRAIN
 
-    void prepare (double sampleRate)
+    void prepare (double /*sampleRate*/)
     {
-        sr = static_cast<float> (sampleRate);
-
-        constexpr float basesMs [NUM_VOICES] = { 37.f, 51.f, 64.f, 79.f };
-        constexpr float lfosHz  [NUM_VOICES] = { 0.053f, 0.083f, 0.131f, 0.173f };
-        constexpr float depthMs [NUM_VOICES] = { 8.f,  10.f,  12.f,   9.f };
-
-        bufSize = static_cast<int> (0.12f * sr) + 8; // 120 ms max
-
-        for (int v = 0; v < NUM_VOICES; ++v)
-        {
-            bufs[v].assign (bufSize, 0.f);
-            wPos[v]    = 0;
-            baseD[v]   = basesMs[v] * 0.001f * sr;
-            lfoPhase[v]= static_cast<float> (v) / NUM_VOICES;
-            lfoInc[v]  = lfosHz[v] / sr;
-            lfoDepth[v]= depthMs[v] * 0.001f * sr;
-            fbState[v] = 0.f;
-        }
+        reset();
     }
 
     void reset()
     {
-        for (int v = 0; v < NUM_VOICES; ++v)
-        {
-            std::fill (bufs[v].begin(), bufs[v].end(), 0.f);
-            wPos[v]    = 0;
-            lfoPhase[v]= static_cast<float> (v) / NUM_VOICES;
-            fbState[v] = 0.f;
-        }
+        buf.fill (0.f);
+        wPos = 0;
+
+        // Grain 2 starts halfway through its cycle so windows complement grain 1
+        r1 = -(float) GRAIN;
+        r2 = -(float) GRAIN * 0.5f;
     }
 
-    /** Process one sample.  Returns shimmer output. */
+    /**
+     *  Process one sample.
+     *  Returns the pitch-shifted (+1 octave) version of x, scaled by amount.
+     */
     float process (float x, float amount) noexcept
     {
         if (amount < 0.001f)
             return 0.f;
 
-        float out = 0.f;
+        // ── Write to circular buffer ──────────────────────────────────
+        buf[wPos & (BUF - 1)] = x;
 
-        for (int v = 0; v < NUM_VOICES; ++v)
-        {
-            // LFO
-            const float lfoVal = std::sin (lfoPhase[v] * juce::MathConstants<float>::twoPi);
-            lfoPhase[v] += lfoInc[v];
-            if (lfoPhase[v] >= 1.f) lfoPhase[v] -= 1.f;
+        // ── Compute Hanning window for each grain ─────────────────────
+        // phase = (r - (wPos - GRAIN)) / GRAIN  →  0..1 as r goes (wPos-GRAIN)..wPos
+        const float phase1 = juce::jlimit (0.f, 1.f,
+            (r1 - static_cast<float> (wPos) + static_cast<float> (GRAIN))
+            / static_cast<float> (GRAIN));
 
-            const float dSamples = juce::jlimit (1.f, static_cast<float> (bufSize - 2),
-                                                 baseD[v] + lfoVal * lfoDepth[v]);
+        const float phase2 = juce::jlimit (0.f, 1.f,
+            (r2 - static_cast<float> (wPos) + static_cast<float> (GRAIN))
+            / static_cast<float> (GRAIN));
 
-            // Write (input + mild feedback for buildup)
-            bufs[v][wPos[v]] = x + fbState[v] * 0.45f;
+        const float w1 = 0.5f - 0.5f * std::cos (phase1 * juce::MathConstants<float>::twoPi);
+        const float w2 = 0.5f - 0.5f * std::cos (phase2 * juce::MathConstants<float>::twoPi);
 
-            // Linear interpolated read
-            float rPos = static_cast<float> (wPos[v]) - dSamples;
-            while (rPos < 0.f) rPos += static_cast<float> (bufSize);
+        // ── Read both grains with linear interpolation ────────────────
+        const float s1 = readLinear (r1);
+        const float s2 = readLinear (r2);
 
-            const int   ri0  = static_cast<int> (rPos) % bufSize;
-            const int   ri1  = (ri0 + 1) % bufSize;
-            const float frac = rPos - std::floor (rPos);
-            const float samp = bufs[v][ri0] * (1.f - frac) + bufs[v][ri1] * frac;
+        const float out = s1 * w1 + s2 * w2;
 
-            fbState[v] = samp;
-            out += samp;
+        // ── Advance read pointers at 2× write speed (= +1 octave) ─────
+        r1 += 2.f;
+        r2 += 2.f;
+        ++wPos;
 
-            wPos[v] = (wPos[v] + 1) % bufSize;
-        }
+        // ── Reset grains once they have caught up with the write head ──
+        // (phase = 1  ↔  r == wPos)
+        if (r1 >= static_cast<float> (wPos))
+            r1 = static_cast<float> (wPos) - static_cast<float> (GRAIN);
 
-        return out * (amount * 0.6f / static_cast<float> (NUM_VOICES));
+        if (r2 >= static_cast<float> (wPos))
+            r2 = static_cast<float> (wPos) - static_cast<float> (GRAIN);
+
+        return out * amount;
     }
 
 private:
-    float sr      = 44100.f;
-    int   bufSize = 0;
+    std::array<float, BUF> buf = {};
+    int   wPos = 0;
+    float r1   = 0.f, r2 = 0.f;
 
-    std::array<std::vector<float>, NUM_VOICES> bufs;
-    std::array<int,   NUM_VOICES> wPos     = {};
-    std::array<float, NUM_VOICES> baseD    = {};
-    std::array<float, NUM_VOICES> lfoPhase = {};
-    std::array<float, NUM_VOICES> lfoInc   = {};
-    std::array<float, NUM_VOICES> lfoDepth = {};
-    std::array<float, NUM_VOICES> fbState  = {};
+    /** Linear-interpolated read from the circular buffer. */
+    float readLinear (float pos) const noexcept
+    {
+        // Wrap into buffer range
+        float p = pos;
+        while (p < 0.f)        p += static_cast<float> (BUF);
+        while (p >= static_cast<float> (BUF)) p -= static_cast<float> (BUF);
+
+        const int   i0   = static_cast<int> (p) & (BUF - 1);
+        const int   i1   = (i0 + 1) & (BUF - 1);
+        const float frac = p - std::floor (p);
+
+        return buf[i0] * (1.f - frac) + buf[i1] * frac;
+    }
 };

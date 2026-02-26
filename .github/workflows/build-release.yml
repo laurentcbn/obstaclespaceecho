@@ -11,6 +11,9 @@ on:
         required: false
         default: ''
 
+permissions:
+  contents: write   # requis pour créer des GitHub Releases
+
 jobs:
   build-macos:
     name: Build macOS (VST3 + AU + Standalone)

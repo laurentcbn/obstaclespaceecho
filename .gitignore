@@ -1,0 +1,36 @@
+# Build directories
+build/
+build_*/
+out/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+_deps/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+*.dSYM/
+
+# Xcode
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+
+# JetBrains / VSCode
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Compiled plugin artifacts (generated at build time)
+*.vst3
+*.component
+*.app
+
+# JUCE generated
+JuceLibraryCode/

@@ -1,0 +1,62 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'          # déclenché par: git tag v1.0.0 && git push --tags
+  workflow_dispatch:  # lancement manuel depuis GitHub Actions
+
+jobs:
+  build-macos:
+    name: Build macOS (VST3 + AU + Standalone)
+    runs-on: macos-14   # Apple Silicon runner
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.28'
+
+      - name: Cache JUCE
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: juce-8.0.12-${{ runner.os }}
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build all formats
+        run: cmake --build build --config Release --parallel $(sysctl -n hw.logicalcpu)
+
+      - name: Package artifacts
+        run: |
+          mkdir -p dist
+          cp -r "build/SpaceEcho_artefacts/Release/VST3/Obstacle Space Echo.vst3" dist/
+          cp -r "build/SpaceEcho_artefacts/Release/AU/Obstacle Space Echo.component" dist/
+          cp -r "build/SpaceEcho_artefacts/Release/Standalone/Obstacle Space Echo.app" dist/
+          cd dist
+          zip -r "../Obstacle-Space-Echo-macOS-${{ github.ref_name }}.zip" .
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Obstacle Space Echo ${{ github.ref_name }}"
+          body: |
+            ## Obstacle Space Echo ${{ github.ref_name }}
+
+            ### Installation
+            - **VST3** → `~/Library/Audio/Plug-Ins/VST3/`
+            - **AU**   → `~/Library/Audio/Plug-Ins/Components/`
+            - **Standalone** → double-clic pour tester sans DAW
+
+            ### Changelog
+            See [README](https://github.com/laurentcbn/obstaclespaceecho#readme)
+          files: Obstacle-Space-Echo-macOS-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

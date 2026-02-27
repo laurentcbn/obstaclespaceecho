@@ -98,6 +98,12 @@ private:
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smTapeNoise;
     juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smShimmer;
 
+    // Smoothed delay time — used by tempo-sync to glide between divisions
+    juce::SmoothedValue<float, juce::ValueSmoothingTypes::Linear> smSyncDelay;
+
+    // ── Tempo sync state ──────────────────────────────────────────────
+    double lastBpm = 120.0; // last known host BPM (kept across blocks)
+
     // ── Test tone ─────────────────────────────────────────────────────
     std::atomic<bool> testToneEnabled { false };
     float testTonePhase   = 0.f;

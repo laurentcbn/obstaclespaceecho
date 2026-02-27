@@ -43,11 +43,15 @@ SpaceEchoAudioProcessorEditor::SpaceEchoAudioProcessorEditor (SpaceEchoAudioProc
     knobNoise    = std::make_unique<LabelledKnob> ("NOISE",      apvts, "tapeNoise");
     knobShimmer  = std::make_unique<LabelledKnob> ("SHIMMER",   apvts, "shimmer");
 
+    // Sync division (left panel)
+    knobSyncDiv  = std::make_unique<LabelledKnob> ("DIV",        apvts, "syncDiv");
+
     addKnob (*knobInput);    addKnob (*knobRepeat);   addKnob (*knobIntensity);
     addKnob (*knobBass);     addKnob (*knobTreble);
     addKnob (*knobEcho);     addKnob (*knobReverb);
     addKnob (*knobWow);      addKnob (*knobSat);
     addKnob (*knobNoise);    addKnob (*knobShimmer);
+    addKnob (*knobSyncDiv);
 
     // ── VU meters ──────────────────────────────────────────────────────
     addAndMakeVisible (vuIn);
@@ -84,6 +88,15 @@ SpaceEchoAudioProcessorEditor::SpaceEchoAudioProcessorEditor (SpaceEchoAudioProc
     pingpongAttachment = std::make_unique<juce::ButtonParameterAttachment> (
         *apvts.getParameter ("pingpong"), pingpongBtn, apvts.undoManager);
 
+    // ── SYNC button ────────────────────────────────────────────────────
+    styliseToggleButton (syncBtn,
+        juce::Colour (0xFF1A2A1A), juce::Colour (0xFF007722),
+        juce::Colour (0xFF44BB66), juce::Colours::white);
+    addAndMakeVisible (syncBtn);
+
+    syncAttachment = std::make_unique<juce::ButtonParameterAttachment> (
+        *apvts.getParameter ("sync"), syncBtn, apvts.undoManager);
+
     // ── Mode selector ──────────────────────────────────────────────────
     addAndMakeVisible (modeSelector);
 
@@ -118,7 +131,8 @@ SpaceEchoAudioProcessorEditor::SpaceEchoAudioProcessorEditor (SpaceEchoAudioProc
 
     for (auto* k : { knobInput.get(), knobRepeat.get(), knobIntensity.get(),
                      knobBass.get(), knobTreble.get(), knobEcho.get(), knobReverb.get(),
-                     knobWow.get(), knobSat.get(), knobNoise.get(), knobShimmer.get() })
+                     knobWow.get(), knobSat.get(), knobNoise.get(), knobShimmer.get(),
+                     knobSyncDiv.get() })
     {
         styliseLabel (k->label);
         styliseKnob  (k->knob);
@@ -256,6 +270,17 @@ void SpaceEchoAudioProcessorEditor::paint (juce::Graphics& g)
     // VU sub-section separator + micro-labels (silk-screened)
     g.setColour (juce::Colour (0xFF2A2A2A));
     g.drawLine (6.f, 183.f, 194.f, 183.f, 1.f);
+
+    // Sync section separator + label (between knob row and sync div)
+    g.setColour (juce::Colour (0xFF2A2A2A));
+    g.drawLine (6.f, 300.f, 194.f, 300.f, 1.f);
+    g.setFont (IndustrialLookAndFeel::getIndustrialFont (7.f));
+    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    g.drawText ("SYNC DIV", juce::Rectangle<float> (1.f, 303.f, 198.f, 8.f),
+                juce::Justification::centred);
+    g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM).withAlpha (0.45f));
+    g.drawText ("SYNC DIV", juce::Rectangle<float> (0.f, 302.f, 198.f, 8.f),
+                juce::Justification::centred);
 
     g.setFont (IndustrialLookAndFeel::getIndustrialFont (7.f));
     g.setColour (juce::Colours::black.withAlpha (0.5f));     // shadow
@@ -408,6 +433,7 @@ void SpaceEchoAudioProcessorEditor::resized()
     // ── Header buttons ───────────────────────────────────────────────
     freezeBtn  .setBounds (330,     9, 110, 34);
     pingpongBtn.setBounds (448,     9, 130, 34);
+    syncBtn    .setBounds (586,     9,  72, 34);
     testToneBtn.setBounds (W - 112, 9, 102, 34);
 
     // ── LEFT panel ───────────────────────────────────────────────────
@@ -416,9 +442,19 @@ void SpaceEchoAudioProcessorEditor::resized()
     vuIn .setBounds (8,   62, 88, 116);
     vuOut.setBounds (104, 62, 88, 116);
 
-    // Three control knobs: INPUT, RATE, INTENSITY (compact, 64px slots)
+    // Three control knobs: INPUT, RATE, INTENSITY
     layoutKnobRow ({ knobInput.get(), knobRepeat.get(), knobIntensity.get() },
-                   { 4, 186, 192, 116 }, 4);
+                   { 4, 186, 192, 104 }, 4);
+
+    // Sync division knob — small, centred in the left panel below the knob row
+    // Uses the empty space from y=298 to y=408
+    {
+        const int kW = 80, kH = 60, lblH = 18;
+        const int kx = (200 - kW) / 2;   // centered horizontally in 200px panel
+        const int ky = 304;
+        knobSyncDiv->knob .setBounds (kx, ky,        kW, kH);
+        knobSyncDiv->label.setBounds (kx, ky + kH,   kW, lblH);
+    }
 
     // ── CENTER panel ─────────────────────────────────────────────────
 

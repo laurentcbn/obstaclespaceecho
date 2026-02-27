@@ -59,12 +59,14 @@ private:
     // ── Test tone button ──────────────────────────────────────────────
     juce::TextButton testToneBtn { "TEST" };
 
-    // ── FREEZE / PING-PONG toggle buttons ────────────────────────────
+    // ── FREEZE / PING-PONG / SYNC toggle buttons ─────────────────────
     juce::TextButton freezeBtn    { "FREEZE"    };
     juce::TextButton pingpongBtn  { "PING-PONG" };
+    juce::TextButton syncBtn      { "SYNC"      };
 
     std::unique_ptr<juce::ButtonParameterAttachment> freezeAttachment;
     std::unique_ptr<juce::ButtonParameterAttachment> pingpongAttachment;
+    std::unique_ptr<juce::ButtonParameterAttachment> syncAttachment;
 
     // ── Mode selector ─────────────────────────────────────────────────
     ModeSelector modeSelector;
@@ -103,6 +105,8 @@ private:
     std::unique_ptr<LabelledKnob> knobReverb;
     std::unique_ptr<LabelledKnob> knobNoise;
     std::unique_ptr<LabelledKnob> knobShimmer;
+    // Sync division (left panel, below RATE)
+    std::unique_ptr<LabelledKnob> knobSyncDiv;
 
     // ── Layout helpers ────────────────────────────────────────────────
     void addKnob (LabelledKnob& k);

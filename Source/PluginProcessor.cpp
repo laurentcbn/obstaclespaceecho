@@ -66,6 +66,20 @@ SpaceEchoAudioProcessor::createParameterLayout()
     params.push_back (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { "pingpong", 1 }, "Ping-Pong", false));
 
+    // ── Tempo sync ────────────────────────────────────────────────────
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "sync", 1 }, "Sync", false));
+
+    // Division index → quarter-note beats: 0=1/16, 1=1/8, 2=1/4, 3=3/8, 4=1/2, 5=3/4
+    static const char* divNames[] = { "1/16", "1/8", "1/4", "3/8", "1/2", "3/4" };
+    params.push_back (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { "syncDiv", 1 }, "Sync Division", 0, 5, 2,
+        juce::AudioParameterIntAttributes()
+            .withStringFromValueFunction ([](int v, int) -> juce::String {
+                const char* names[] = { "1/16", "1/8", "1/4", "3/8", "1/2", "3/4" };
+                return (v >= 0 && v <= 5) ? names[v] : "?";
+            })));
+
     return { params.begin(), params.end() };
 }
 
@@ -130,6 +144,10 @@ void SpaceEchoAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPer
     initSmoother (smTapeNoise,   "tapeNoise");
     initSmoother (smShimmer,     "shimmer");
 
+    // Sync-delay smoother initialised at current repeatRate value
+    smSyncDelay.reset (sampleRate, rampSec);
+    smSyncDelay.setCurrentAndTargetValue (*apvts.getRawParameterValue ("repeatRate"));
+
     scopeBuffer.fill (0.f);
     scopeWritePos.store (0, std::memory_order_relaxed);
 }
@@ -179,6 +197,35 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     const bool  pingpong = *apvts.getRawParameterValue ("pingpong") > 0.5f;
     const float repeatMs = *apvts.getRawParameterValue ("repeatRate");
 
+    // ── Tempo sync — compute effective delay time ─────────────────────
+    {
+        float effectiveDelayMs = repeatMs; // default: free rate from knob
+
+        const bool syncOn = *apvts.getRawParameterValue ("sync") > 0.5f;
+        if (syncOn)
+        {
+            // Ask the host for the current BPM
+            if (auto* ph = getPlayHead())
+            {
+                if (auto pos = ph->getPosition())
+                    if (auto bpm = pos->getBpm())
+                        lastBpm = *bpm;
+            }
+
+            // Division table — beats per quarter note (4/4 assumption)
+            // Index: 0=1/16, 1=1/8, 2=1/4, 3=3/8(dot-1/4), 4=1/2, 5=3/4(dot-1/2)
+            static const float DIV_BEATS[6] = { 0.25f, 0.5f, 1.0f, 1.5f, 2.0f, 3.0f };
+            const int div = juce::jlimit (0, 5,
+                (int) *apvts.getRawParameterValue ("syncDiv"));
+
+            effectiveDelayMs = static_cast<float> (60.0 / lastBpm)
+                               * DIV_BEATS[div] * 1000.f;
+            effectiveDelayMs = juce::jlimit (20.f, 500.f, effectiveDelayMs);
+        }
+
+        smSyncDelay.setTargetValue (effectiveDelayMs);
+    }
+
     updateEQ (bassDb, trebleDb);
     tapeL.setFrozen (frozen);
     tapeR.setFrozen (frozen);
@@ -201,8 +248,6 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
     int numHeads = 0;
     for (int h = 0; h < TapeDelay::NUM_HEADS; ++h)
         if (mc.heads[h]) ++numHeads;
-
-    const float baseDelay = repeatMs * 0.001f * (float) currentSampleRate;
 
     // Stereo output setup
     const int totalIn  = getTotalNumInputChannels();
@@ -267,6 +312,8 @@ void SpaceEchoAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer,
         inAcc += std::abs (inL);
 
         // ── Tape delay ────────────────────────────────────────────────
+        const float baseDelay = smSyncDelay.getNextValue()
+                                * 0.001f * static_cast<float> (currentSampleRate);
         auto headsL = tapeL.process (inL, baseDelay, feedbackL, wow, sat);
         auto headsR = tapeR.process (inR, baseDelay, feedbackR, wow, sat);
 

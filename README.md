@@ -6,7 +6,7 @@
 ![Format](https://img.shields.io/badge/format-VST3%20%7C%20AU%20%7C%20Standalone-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![JUCE](https://img.shields.io/badge/JUCE-8.0.12-green)
-![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.5.0-brightgreen)
 
 ---
 
@@ -16,12 +16,20 @@
 - **3 virtual tape heads** with authentic RE-201 spacing ratios (×1.0, ×1.475, ×2.625)
 - **12 echo modes** — single, double, triple heads with optional spring reverb
 - **Wow & flutter** — dual LFO pitch modulation (0.4 Hz wow + 8 Hz / 13.7 Hz flutter)
-- **Tape saturation** — soft `tanh` clipping on the record head
+- **Motor drift** — ultra-slow 0.05 Hz LFO for long-term speed instability (always-on)
+- **Tape saturation** — asymmetric soft-clip (dominant 2nd harmonic, even-order warmth)
+- **Head-gap loss** — speed-dependent per-head LP filter (darkens at slow speed / far heads)
+- **Head bump** — bandpass resonance at ~150 Hz (warm low-mid magnetic presence)
+- **Print-through** — faint ghost echo from adjacent tape layer bleed (~35 dB below)
+- **Inter-head crosstalk** — 1.5% magnetic bleed between adjacent heads
+- **Dropout simulation** — rare brief amplitude dips (~2–3/min) simulating tape wear
 - **Bass / Treble EQ** — inside the feedback loop (accumulates per repeat)
 - **Tape noise** — filtered hiss (200–8 kHz bandpass), adds vintage character
 
 ### Spring reverb
 - **Schroeder reverberator** tuned for spring character (8 combs + 4 allpass)
+- **"Boing" attack resonator** — digital resonator at 1200 Hz, ~200 ms decay, adds
+  the characteristic metallic spring ringing on attack
 - **Shimmer reverb** — granular pitch shifter (+1 octave) feeding back into the reverb tail,
   creating an endless rising harmonic shimmer (Valhalla-style algorithm)
 
@@ -80,6 +88,8 @@
 | SHIMMER       | 0 – 100%      | Granular +1-octave shimmer on reverb tail                |
 | **FREEZE**    | toggle        | Freezes tape loop — creates an infinite sustain pad      |
 | **PING-PONG** | toggle        | Stereo cross-feed — echoes bounce left ↔ right           |
+| **SYNC**      | toggle        | Locks RATE to host BPM (uses SYNC DIV note value)        |
+| SYNC DIV      | 1/16 – 3/4    | Note division for tempo sync (1/16, 1/8, 1/4, 3/8, 1/2, 3/4) |
 
 ---
 
@@ -165,6 +175,20 @@ Input ──┬─────────────────────�
 ---
 
 ## Changelog
+
+### v1.5.0
+- **Motor drift**: ultra-slow 0.05 Hz LFO, always-on ±0.15% pitch (long-term instability)
+- **Print-through**: faint pre-echo ~35 dB below main signal (magnetic layer bleed)
+- **Inter-head crosstalk**: 1.5% bleed between adjacent heads (magnetic oxide proximity)
+- **Dropout simulation**: rare brief amplitude dips (~2–3/min) simulating tape wear
+- **Spring reverb boing**: digital resonator at 1200 Hz, τ=200 ms (metallic attack character)
+- **MIDI tempo sync**: SYNC toggle + SYNC DIV note division (1/16–3/4), host BPM via playhead
+
+### v1.4.0
+- **Head-gap loss**: per-head speed-dependent LP filter (7000/5200/3800 Hz at ref speed)
+- **Organic flutter**: xorshift32 noise LP-filtered at ~5 Hz mixed with periodic LFOs
+- **Head bump**: bandpass resonance at ~150 Hz (270 Hz LP − 85 Hz LP, mix 28%)
+- **Asymmetric saturation**: x/(1+1.12|x|) positive, x/(1−0.88|x|) negative — dominant 2nd harmonic
 
 ### v1.3.0
 - **Interface**: complete Roland RE-201 faithful skeuomorphic redesign (960 × 460 px)

@@ -6,7 +6,7 @@
 ![Format](https://img.shields.io/badge/format-VST3%20%7C%20AU%20%7C%20Standalone-orange)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![JUCE](https://img.shields.io/badge/JUCE-8.0.12-green)
-![Version](https://img.shields.io/badge/version-1.2.0-brightgreen)
+![Version](https://img.shields.io/badge/version-1.3.0-brightgreen)
 
 ---
 
@@ -31,12 +31,15 @@
 - **Soft limiter** — transparent tanh output stage prevents digital clipping at any setting
 - **Per-sample parameter smoothing** — no zipper noise when turning knobs live
 
-### Interface (960 × 520 px)
-- **Industrial panel** — copper/charcoal aesthetic, LED screws, brushed metal sections
-- **Animated tape reels** — copper-flange reels rotating at tape speed, freeze-aware
-- **Oscilloscope** — CRT phosphor-green real-time waveform with scanline overlay
-- **LED VU meters** — 24-segment input/output with peak hold
-- **12-position mode selector** — backlit LEDs, RE-201 style
+### Interface (960 × 460 px) — Roland RE-201 faithful
+- **Three-section skeuomorphic panel** — dark aluminium left, centre, military-green right
+- **Analog needle VU meter** — semi-circular arc, −20..+3 VU scale, 300 ms ballistics, peak hold
+- **Rotary mode selector** — large chrome dial, 300° arc, 12 positions, click or drag
+- **Brushed-aluminium texture** — fine horizontal lines on metal panels, hammertone finish on green panel
+- **Chrome Phillips screws** — specular highlight, recessed head, directional gradient (8 total)
+- **Recessed groove seams** — physical joint illusion between panel sections
+- **Animated tape reels** — rotating at tape speed, freeze-aware, in footer strip
+- **Oscilloscope** — CRT phosphor-green real-time waveform
 - **Built-in test tone** — A/C# chord every 1.5 s, no external audio needed
 
 ---
@@ -162,6 +165,13 @@ Input ──┬─────────────────────�
 ---
 
 ## Changelog
+
+### v1.3.0
+- **Interface**: complete Roland RE-201 faithful skeuomorphic redesign (960 × 460 px)
+- **Analog VU meter**: semi-circular needle, −20..+3 VU scale, 300 ms ballistics, peak hold
+- **Rotary mode selector**: large chrome dial replacing button strip, 300° arc, click/drag
+- **Panel textures**: brushed-aluminium lines on dark panels, hammertone finish on green panel
+- **Skeuomorphic details**: chrome Phillips screws, recessed groove seams, silk-screened labels, corner vignette, outer frame bevel
 
 ### v1.2.0
 - **Shimmer**: replaced fake chorus with proper granular +1-octave pitch shifter (Valhalla-style feedback architecture)

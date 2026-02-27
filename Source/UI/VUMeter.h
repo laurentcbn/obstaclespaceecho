@@ -1,122 +1,167 @@
 #pragma once
 #include <JuceHeader.h>
 #include "IndustrialLookAndFeel.h"
+#include <atomic>
+#include <cmath>
 
 /**
- *  VUMeter
+ *  VUMeter — Analog needle VU meter, RE-201 faithful style.
  *
- *  Segment-bar VU meter with:
- *   • Green segments (safe zone)
- *   • Amber segments (hot zone)
- *   • Red peak segment (clip)
- *   • Peak hold dot
- *   • Smooth RMS decay (adjustable time constant)
+ *  Semi-circular arc display with:
+ *   • Scale: -20 .. 0 .. +3 VU
+ *   • Orange/amber needle with VU ballistics (~300 ms)
+ *   • Peak hold (3 s)
+ *   • Black matte face, aluminium bezel
+ *   • "VU" label and channel label
  */
 class VUMeter : public juce::Component, public juce::Timer
 {
 public:
+    // Keep Orientation for API compatibility (editor uses this)
     enum class Orientation { Vertical, Horizontal };
 
-    VUMeter (Orientation ori = Orientation::Vertical, const juce::String& lbl = {})
-        : orientation (ori), label (lbl)
+    VUMeter (Orientation = Orientation::Vertical, const juce::String& lbl = {})
+        : channelLabel (lbl)
     {
         startTimerHz (30);
     }
 
     ~VUMeter() override { stopTimer(); }
 
-    /** Thread-safe: called from audio thread */
+    /** Called from editor timer at ~30 Hz with linear RMS level. */
     void setLevel (float linearRMS) noexcept
     {
-        // Convert to dB range  (-60..+6)
-        const float db = juce::Decibels::gainToDecibels (std::abs (linearRMS), -60.0f);
-        const float norm = juce::jmap (db, -60.0f, 6.0f, 0.0f, 1.0f);
-        targetLevel.store (juce::jlimit (0.0f, 1.0f, norm));
+        const float db = juce::Decibels::gainToDecibels (std::abs (linearRMS), -60.f);
+        // Map -20..+3 dB to 0..1
+        const float norm = juce::jmap (db, -20.f, 3.f, 0.f, 1.f);
+        targetLevel.store (juce::jlimit (0.f, 1.f, norm));
     }
 
     void paint (juce::Graphics& g) override
     {
-        const auto b  = getLocalBounds().toFloat().reduced (2.f);
-        const int  ns = numSegments;
+        const float W  = (float) getWidth();
+        const float H  = (float) getHeight();
 
-        const bool vert = (orientation == Orientation::Vertical);
-        const float segW = vert ? b.getWidth()
-                                : b.getWidth()  / ns;
-        const float segH = vert ? b.getHeight() / ns
-                                : b.getHeight();
-        const float gap  = 2.f;
-
-        const float lvl  = displayLevel;
-        const int   litN = static_cast<int> (lvl * ns);
-
-        // ── Segments ──────────────────────────────────────────────────
-        for (int i = 0; i < ns; ++i)
+        // ── Aluminium bezel ───────────────────────────────────────────
         {
-            juce::Rectangle<float> seg;
-            if (vert)
+            juce::ColourGradient bezel (
+                juce::Colour (0xFF888888), 0.f, 0.f,
+                juce::Colour (0xFF383838), W,   H, false);
+            g.setGradientFill (bezel);
+            g.fillRoundedRectangle (0.f, 0.f, W, H, 5.f);
+        }
+
+        // ── Black face ────────────────────────────────────────────────
+        const juce::Rectangle<float> face (4.f, 4.f, W - 8.f, H - 8.f);
+        g.setColour (juce::Colour (0xFF0C0C0C));
+        g.fillRoundedRectangle (face, 3.f);
+
+        // Arc parameters (semi-circle opening downward → needles sweep up)
+        const float cx    = W * 0.5f;
+        const float arcY  = H * 0.88f;          // pivot below centre
+        const float arcR  = W * 0.48f;
+        const float angStart = juce::MathConstants<float>::pi * 1.20f; // ~216°
+        const float angEnd   = juce::MathConstants<float>::pi * 1.80f; // ~324° (= -36°)
+        const float angRange = angEnd - angStart;
+
+        // ── Scale arc (background) ────────────────────────────────────
+        {
+            juce::Path arc;
+            arc.addCentredArc (cx, arcY, arcR, arcR, 0.f, angStart, angEnd, true);
+            g.setColour (juce::Colour (0xFF222222));
+            g.strokePath (arc, juce::PathStrokeType (2.f));
+        }
+
+        // ── Scale markings ────────────────────────────────────────────
+        // VU scale: -20, -10, -7, -5, -3, -1, 0, +1, +2, +3
+        const float scaleDb[]  = { -20.f, -10.f, -7.f, -5.f, -3.f, -1.f, 0.f, 1.f, 2.f, 3.f };
+        const char* scaleLabel[]= { "-20", "-10",  "-7", "-5",  "-3",  "",   "0",  "",  "",  "+3" };
+        const int   nScale     = 10;
+
+        for (int i = 0; i < nScale; ++i)
+        {
+            const float norm = juce::jmap (scaleDb[i], -20.f, 3.f, 0.f, 1.f);
+            const float ang  = angStart + norm * angRange;
+            const float sinA = std::sin (ang), cosA = std::cos (ang);
+
+            // Tick
+            const bool  bigTick = (scaleDb[i] <= -10.f || scaleDb[i] >= 0.f);
+            const float r1 = arcR - (bigTick ? 10.f : 7.f);
+            const float r2 = arcR + 2.f;
+            g.setColour (scaleDb[i] >= 0.f ? juce::Colour (0xFFDD3333)
+                                           : juce::Colour (0xFF888888));
+            g.drawLine (cx + sinA * r1, arcY + cosA * r1,
+                        cx + sinA * r2, arcY + cosA * r2,
+                        bigTick ? 2.f : 1.2f);
+
+            // Label
+            if (scaleLabel[i][0] != '\0')
             {
-                // Bottom = segment 0
-                float segTop = b.getBottom() - (i + 1) * segH + gap * 0.5f;
-                seg = { b.getX(), segTop, segW, segH - gap };
-            }
-            else
-            {
-                seg = { b.getX() + i * segW + gap * 0.5f, b.getY(), segW - gap, segH };
-            }
-
-            const bool lit = (i < litN);
-            juce::Colour segCol;
-
-            if (i >= ns - 1)          segCol = juce::Colour (IndustrialLookAndFeel::COL_RED);
-            else if (i >= ns - 4)     segCol = juce::Colour (IndustrialLookAndFeel::COL_AMBER);
-            else                      segCol = juce::Colour (IndustrialLookAndFeel::COL_GREEN);
-
-            if (!lit) segCol = segCol.withAlpha (0.12f);
-
-            g.setColour (segCol);
-            g.fillRoundedRectangle (seg, 1.5f);
-
-            if (lit)
-            {
-                // Inner highlight
-                g.setColour (juce::Colours::white.withAlpha (0.12f));
-                g.fillRoundedRectangle (seg.withHeight (seg.getHeight() * 0.35f), 1.5f);
+                const float lx = cx + sinA * (r1 - 9.f);
+                const float ly = arcY + cosA * (r1 - 9.f);
+                g.setFont (juce::Font (juce::FontOptions ("Arial", 6.5f, juce::Font::plain)));
+                g.setColour (scaleDb[i] >= 0.f ? juce::Colour (0xFFEE4444)
+                                               : juce::Colour (0xFF999999));
+                g.drawText (scaleLabel[i],
+                            (int) (lx - 12.f), (int) (ly - 6.f), 24, 12,
+                            juce::Justification::centred);
             }
         }
 
-        // ── Peak hold ─────────────────────────────────────────────────
-        if (peakHold > 0.01f)
+        // ── Coloured zones (red zone 0..+3) ──────────────────────────
         {
-            const int peakSeg = static_cast<int> (peakHold * ns);
-            const int clamped = juce::jlimit (0, ns - 1, peakSeg);
-
-            juce::Colour pkCol = (clamped >= ns - 1)
-                ? juce::Colour (IndustrialLookAndFeel::COL_RED)
-                : juce::Colour (IndustrialLookAndFeel::COL_AMBER);
-
-            juce::Rectangle<float> seg;
-            if (vert)
-            {
-                float segTop = b.getBottom() - (clamped + 1) * segH + gap * 0.5f;
-                seg = { b.getX() + segW * 0.2f, segTop + segH * 0.35f,
-                        segW * 0.6f, segH * 0.3f };
-            }
-            else
-            {
-                seg = { b.getX() + clamped * segW + gap * 0.5f + segW * 0.3f,
-                        b.getY() + segH * 0.2f,
-                        segW * 0.4f, segH * 0.6f };
-            }
-            g.setColour (pkCol.withAlpha (0.9f));
-            g.fillRoundedRectangle (seg, 1.f);
+            const float ang0  = angStart + juce::jmap (0.f,  -20.f, 3.f, 0.f, 1.f) * angRange;
+            juce::Path redArc;
+            redArc.addCentredArc (cx, arcY, arcR - 3.f, arcR - 3.f, 0.f, ang0, angEnd, true);
+            g.setColour (juce::Colour (0x55DD2222));
+            g.strokePath (redArc, juce::PathStrokeType (5.f));
         }
 
-        // ── Label ─────────────────────────────────────────────────────
-        if (label.isNotEmpty())
+        // ── Needle ────────────────────────────────────────────────────
         {
-            g.setFont (IndustrialLookAndFeel::getIndustrialFont (9.f));
+            const float ang  = angStart + needlePos * angRange;
+            const float len  = arcR - 6.f;
+            const float sinA = std::sin (ang), cosA = std::cos (ang);
+
+            // Shadow
+            g.setColour (juce::Colours::black.withAlpha (0.4f));
+            g.drawLine (cx + 1.f, arcY + 1.f,
+                        cx + sinA * (len - 1.f) + 1.f, arcY + cosA * (len - 1.f) + 1.f, 1.5f);
+
+            // Needle body
+            g.setColour (juce::Colour (IndustrialLookAndFeel::COL_AMBER));
+            g.drawLine (cx, arcY, cx + sinA * len, arcY + cosA * len, 1.8f);
+
+            // Pivot dot
+            g.setColour (juce::Colour (0xFF555555));
+            g.fillEllipse (cx - 5.f, arcY - 5.f, 10.f, 10.f);
+            g.setColour (juce::Colour (0xFF888888));
+            g.fillEllipse (cx - 3.f, arcY - 3.f, 6.f, 6.f);
+        }
+
+        // ── Peak hold tick ────────────────────────────────────────────
+        if (peakHold > 0.02f)
+        {
+            const float ang  = angStart + peakHold * angRange;
+            const float sinA = std::sin (ang), cosA = std::cos (ang);
+            g.setColour (juce::Colour (IndustrialLookAndFeel::COL_AMBER).withAlpha (0.7f));
+            g.drawLine (cx + sinA * (arcR - 13.f), arcY + cosA * (arcR - 13.f),
+                        cx + sinA * (arcR - 3.f),  arcY + cosA * (arcR - 3.f), 2.f);
+        }
+
+        // ── "VU" label ────────────────────────────────────────────────
+        g.setFont (juce::Font (juce::FontOptions ("Arial", 8.f, juce::Font::bold)));
+        g.setColour (juce::Colour (0xFF666666));
+        g.drawText ("VU", (int) (cx - 12.f), (int) (arcY - arcR * 0.35f), 24, 12,
+                    juce::Justification::centred);
+
+        // ── Channel label ─────────────────────────────────────────────
+        if (channelLabel.isNotEmpty())
+        {
+            g.setFont (IndustrialLookAndFeel::getIndustrialFont (8.f));
             g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM));
-            g.drawText (label, getLocalBounds(), juce::Justification::centredTop);
+            g.drawText (channelLabel, 0, (int) (H - 14.f), (int) W, 12,
+                        juce::Justification::centred);
         }
     }
 
@@ -125,9 +170,9 @@ public:
     void timerCallback() override
     {
         const float target = targetLevel.load();
-        const float decay  = 0.92f; // ~30 ms decay at 30 Hz
 
-        displayLevel = std::max (displayLevel * decay, target);
+        // VU ballistics: ~300 ms attack & release at 30 Hz → coeff ≈ 0.10
+        needlePos += (target - needlePos) * 0.10f;
 
         // Peak hold
         if (target >= peakHold)
@@ -135,21 +180,17 @@ public:
             peakHold    = target;
             peakHoldAge = 0;
         }
-        else if (++peakHoldAge > 90) // ~3s hold
-        {
-            peakHold = std::max (0.0f, peakHold - 0.005f);
-        }
+        else if (++peakHoldAge > 90) // ~3 s
+            peakHold = std::max (0.f, peakHold - 0.004f);
 
         repaint();
     }
 
 private:
-    Orientation   orientation;
-    juce::String  label;
-    int           numSegments = 24;
+    juce::String channelLabel;
 
-    std::atomic<float> targetLevel { 0.0f };
-    float              displayLevel = 0.0f;
-    float              peakHold     = 0.0f;
-    int                peakHoldAge  = 0;
+    std::atomic<float> targetLevel { 0.f };
+    float needlePos  = 0.f;
+    float peakHold   = 0.f;
+    int   peakHoldAge= 0;
 };

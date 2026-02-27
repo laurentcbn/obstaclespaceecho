@@ -25,25 +25,29 @@ SpaceEchoAudioProcessorEditor::SpaceEchoAudioProcessorEditor (SpaceEchoAudioProc
 
     auto& apvts = processor.apvts;
 
-    // ── Row A knobs ────────────────────────────────────────────────────
+    // ── Knobs ──────────────────────────────────────────────────────────
+    // Left panel
     knobInput    = std::make_unique<LabelledKnob> ("INPUT",     apvts, "inputGain");
     knobRepeat   = std::make_unique<LabelledKnob> ("RATE",      apvts, "repeatRate");
     knobIntensity= std::make_unique<LabelledKnob> ("INTENSITY", apvts, "intensity");
+
+    // Green panel Row 1
     knobBass     = std::make_unique<LabelledKnob> ("BASS",      apvts, "bass");
     knobTreble   = std::make_unique<LabelledKnob> ("TREBLE",    apvts, "treble");
+    knobEcho     = std::make_unique<LabelledKnob> ("ECHO LVL",  apvts, "echoLevel");
+    knobReverb   = std::make_unique<LabelledKnob> ("REVERB LVL",apvts, "reverbLevel");
 
-    // ── Row B knobs ────────────────────────────────────────────────────
-    knobWow    = std::make_unique<LabelledKnob> ("WOW/FLT",   apvts, "wowFlutter");
-    knobSat    = std::make_unique<LabelledKnob> ("SATURATE",  apvts, "saturation");
-    knobEcho   = std::make_unique<LabelledKnob> ("ECHO LVL",  apvts, "echoLevel");
-    knobReverb = std::make_unique<LabelledKnob> ("REVERB LVL",apvts, "reverbLevel");
-    knobNoise  = std::make_unique<LabelledKnob> ("NOISE",     apvts, "tapeNoise");
-    knobShimmer= std::make_unique<LabelledKnob> ("SHIMMER",   apvts, "shimmer");
+    // Green panel Row 2
+    knobWow      = std::make_unique<LabelledKnob> ("WOW/FLT",   apvts, "wowFlutter");
+    knobSat      = std::make_unique<LabelledKnob> ("SATURATE",  apvts, "saturation");
+    knobNoise    = std::make_unique<LabelledKnob> ("NOISE",      apvts, "tapeNoise");
+    knobShimmer  = std::make_unique<LabelledKnob> ("SHIMMER",   apvts, "shimmer");
 
     addKnob (*knobInput);    addKnob (*knobRepeat);   addKnob (*knobIntensity);
     addKnob (*knobBass);     addKnob (*knobTreble);
-    addKnob (*knobWow);      addKnob (*knobSat);      addKnob (*knobEcho);
-    addKnob (*knobReverb);   addKnob (*knobNoise);    addKnob (*knobShimmer);
+    addKnob (*knobEcho);     addKnob (*knobReverb);
+    addKnob (*knobWow);      addKnob (*knobSat);
+    addKnob (*knobNoise);    addKnob (*knobShimmer);
 
     // ── VU meters ──────────────────────────────────────────────────────
     addAndMakeVisible (vuIn);
@@ -64,8 +68,8 @@ SpaceEchoAudioProcessorEditor::SpaceEchoAudioProcessorEditor (SpaceEchoAudioProc
 
     // ── FREEZE button ──────────────────────────────────────────────────
     styliseToggleButton (freezeBtn,
-        juce::Colour (0xFF1A2A3A), juce::Colour (0xFF0055CC),
-        juce::Colour (0xFF6699CC), juce::Colours::white);
+        juce::Colour (0xFF1A2A3A), juce::Colour (0xFF004EBB),
+        juce::Colour (0xFF5588BB), juce::Colours::white);
     addAndMakeVisible (freezeBtn);
 
     freezeAttachment = std::make_unique<juce::ButtonParameterAttachment> (
@@ -73,8 +77,8 @@ SpaceEchoAudioProcessorEditor::SpaceEchoAudioProcessorEditor (SpaceEchoAudioProc
 
     // ── PING-PONG button ───────────────────────────────────────────────
     styliseToggleButton (pingpongBtn,
-        juce::Colour (0xFF2A1A3A), juce::Colour (0xFF7700CC),
-        juce::Colour (0xFFAA66CC), juce::Colours::white);
+        juce::Colour (0xFF2A1A3A), juce::Colour (0xFF6600BB),
+        juce::Colour (0xFF9966BB), juce::Colours::white);
     addAndMakeVisible (pingpongBtn);
 
     pingpongAttachment = std::make_unique<juce::ButtonParameterAttachment> (
@@ -100,21 +104,21 @@ SpaceEchoAudioProcessorEditor::SpaceEchoAudioProcessorEditor (SpaceEchoAudioProc
     // ── Style knob labels and text boxes ──────────────────────────────
     auto styliseLabel = [&] (juce::Label& l)
     {
-        l.setFont (IndustrialLookAndFeel::getIndustrialFont (10.f));
+        l.setFont (IndustrialLookAndFeel::getIndustrialFont (9.5f));
         l.setColour (juce::Label::textColourId, juce::Colour (IndustrialLookAndFeel::COL_LABEL));
         l.setJustificationType (juce::Justification::centred);
     };
 
     auto styliseKnob = [&] (juce::Slider& s)
     {
-        s.setColour (juce::Slider::textBoxTextColourId,     juce::Colour (IndustrialLookAndFeel::COL_AMBER));
-        s.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour (0xFF0A0A0A));
-        s.setColour (juce::Slider::textBoxOutlineColourId,  juce::Colour (0xFF333333));
+        s.setColour (juce::Slider::textBoxTextColourId,       juce::Colour (IndustrialLookAndFeel::COL_AMBER));
+        s.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colour (0xFF080808));
+        s.setColour (juce::Slider::textBoxOutlineColourId,    juce::Colour (0xFF2A2A2A));
     };
 
     for (auto* k : { knobInput.get(), knobRepeat.get(), knobIntensity.get(),
-                     knobBass.get(), knobTreble.get(), knobWow.get(), knobSat.get(),
-                     knobEcho.get(), knobReverb.get(), knobNoise.get(), knobShimmer.get() })
+                     knobBass.get(), knobTreble.get(), knobEcho.get(), knobReverb.get(),
+                     knobWow.get(), knobSat.get(), knobNoise.get(), knobShimmer.get() })
     {
         styliseLabel (k->label);
         styliseKnob  (k->knob);
@@ -141,159 +145,303 @@ void SpaceEchoAudioProcessorEditor::addKnob (LabelledKnob& k)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  paint
+//  paint  — RE-201 three-section layout  (skeuomorphic)
 // ─────────────────────────────────────────────────────────────────────────────
 void SpaceEchoAudioProcessorEditor::paint (juce::Graphics& g)
 {
     const float fW = static_cast<float> (W);
     const float fH = static_cast<float> (H);
 
-    // ── Main gradient background ──────────────────────────────────────
+    // ── Overall body (near-black base coat) ──────────────────────────
+    g.setColour (juce::Colour (0xFF0E0E0E));
+    g.fillAll();
+
+    // ── Chrome Phillips-head screw (highly detailed, skeuomorphic) ───
+    auto drawScrew = [&] (float sx, float sy)
     {
-        juce::ColourGradient bg (
-            juce::Colour (0xFF1C1C1C), 0.f, 0.f,
-            juce::Colour (0xFF0E0E0E), 0.f, fH,
-            false);
-        g.setGradientFill (bg);
-        g.fillAll();
-    }
+        const float r = 5.8f;
 
-    // ── HEADER panel (h=72) ───────────────────────────────────────────
-    {
-        IndustrialLookAndFeel::drawMetalPanel (g,
-            juce::Rectangle<float> (0.f, 0.f, fW, 72.f),
-            juce::Colour (0xFF252525));
+        // Drop shadow below screw
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.fillEllipse (sx - r, sy - r + 3.f, r * 2.f, r * 2.f);
 
-        // Power LED
-        IndustrialLookAndFeel::drawLED (g, 28.f, 36.f, 7.f,
-            juce::Colour (IndustrialLookAndFeel::COL_GREEN), true);
-
-        // Brand – "OBSTACLE" small / "SPACE ECHO" large
-        const float tx = 46.f;
-        g.setFont (IndustrialLookAndFeel::getIndustrialFont (9.f));
-        g.setColour (juce::Colour (IndustrialLookAndFeel::COL_ORANGE).withAlpha (0.6f));
-        g.drawText ("OBSTACLE", juce::Rectangle<float> (tx, 10.f, 200.f, 14.f),
-                    juce::Justification::centredLeft);
-
-        g.setFont (juce::Font (juce::FontOptions ("Arial", 24.f, juce::Font::bold)));
-        g.setColour (juce::Colour (IndustrialLookAndFeel::COL_ORANGE));
-        g.drawText ("SPACE ECHO", juce::Rectangle<float> (tx, 26.f, 260.f, 30.f),
-                    juce::Justification::centredLeft);
-
-        // Version
-        g.setFont (IndustrialLookAndFeel::getIndustrialFont (9.f));
-        g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM).withAlpha (0.5f));
-        g.drawText ("v1.1", juce::Rectangle<float> (fW - 52.f, 0.f, 44.f, 72.f),
-                    juce::Justification::centred);
-
-        // Screws
-        for (auto [sx, sy] : std::initializer_list<std::pair<float,float>> {
-                { 14.f, 14.f }, { fW - 14.f, 14.f },
-                { 14.f, 58.f }, { fW - 14.f, 58.f } })
+        // Chrome bezel ring (gradient top-left bright → bottom-right dark)
         {
-            g.setColour (juce::Colour (0xFF3A3A3A));
-            g.fillEllipse (sx - 4.f, sy - 4.f, 8.f, 8.f);
-            g.setColour (juce::Colour (0xFF0A0A0A));
-            g.drawEllipse (sx - 4.f, sy - 4.f, 8.f, 8.f, 1.f);
-            g.setColour (juce::Colour (0xFF555555));
-            g.drawLine (sx - 2.5f, sy, sx + 2.5f, sy, 1.f);
-            g.drawLine (sx, sy - 2.5f, sx, sy + 2.5f, 1.f);
+            juce::ColourGradient bezel (
+                juce::Colour (0xFF909090), sx - r, sy - r,
+                juce::Colour (0xFF282828), sx + r, sy + r, false);
+            g.setGradientFill (bezel);
+            g.fillEllipse (sx - r, sy - r, r * 2.f, r * 2.f);
         }
+
+        // Screw head — recessed disc (dark centre with slight radial gradient)
+        {
+            const float ir = r * 0.68f;
+            juce::ColourGradient head (
+                juce::Colour (0xFF333333), sx - ir * 0.5f, sy - ir * 0.5f,
+                juce::Colour (0xFF555555), sx + ir * 0.6f, sy + ir * 0.6f, false);
+            g.setGradientFill (head);
+            g.fillEllipse (sx - ir, sy - ir, ir * 2.f, ir * 2.f);
+        }
+
+        // Phillips cross (dark slots)
+        const float sl = r * 0.44f;
+        g.setColour (juce::Colours::black.withAlpha (0.88f));
+        g.drawLine (sx - sl, sy, sx + sl, sy, 1.8f);
+        g.drawLine (sx, sy - sl, sx, sy + sl, 1.8f);
+
+        // Phillips slot depth highlight (bright edge of slot)
+        g.setColour (juce::Colours::white.withAlpha (0.12f));
+        g.drawLine (sx - sl, sy - 0.7f, sx + sl, sy - 0.7f, 0.8f);
+        g.drawLine (sx - 0.7f, sy - sl, sx - 0.7f, sy + sl, 0.8f);
+
+        // Specular highlight (top-left glint on chrome)
+        g.setColour (juce::Colours::white.withAlpha (0.42f));
+        g.fillEllipse (sx - r * 0.48f, sy - r * 0.62f, r * 0.50f, r * 0.26f);
+    };
+
+    // ─────────────────────────────────────────────────────────────────
+    //  HEADER strip  (h = 52)
+    // ─────────────────────────────────────────────────────────────────
+    IndustrialLookAndFeel::drawMetalPanel (g,
+        juce::Rectangle<float> (0.f, 0.f, fW, 52.f),
+        juce::Colour (0xFF232323));
+
+    // Power LED — red (unit is ON)
+    IndustrialLookAndFeel::drawLED (g, 28.f, 26.f, 7.f,
+        juce::Colour (IndustrialLookAndFeel::COL_RED), true);
+
+    // Brand — "OBSTACLE" small + "SPACE ECHO" large (silk-screened look)
+    {
+        const float tx = 48.f;
+
+        // Shadow layer (silk-screen depth)
+        g.setFont (IndustrialLookAndFeel::getIndustrialFont (8.5f));
+        g.setColour (juce::Colours::black.withAlpha (0.5f));
+        g.drawText ("OBSTACLE",
+                    juce::Rectangle<float> (tx + 1.f, 9.f, 160.f, 12.f),
+                    juce::Justification::centredLeft);
+        g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM).withAlpha (0.70f));
+        g.drawText ("OBSTACLE",
+                    juce::Rectangle<float> (tx, 8.f, 160.f, 12.f),
+                    juce::Justification::centredLeft);
+
+        g.setFont (juce::Font (juce::FontOptions ("Arial", 21.f, juce::Font::bold)));
+        g.setColour (juce::Colours::black.withAlpha (0.5f));
+        g.drawText ("SPACE ECHO",
+                    juce::Rectangle<float> (tx + 1.f, 21.f, 244.f, 26.f),
+                    juce::Justification::centredLeft);
+        g.setColour (juce::Colour (IndustrialLookAndFeel::COL_WHITE));
+        g.drawText ("SPACE ECHO",
+                    juce::Rectangle<float> (tx, 20.f, 244.f, 26.f),
+                    juce::Justification::centredLeft);
     }
 
-    // ── LEFT panel (VU meters + tape reels) ──────────────────────────
-    IndustrialLookAndFeel::drawMetalPanel (g,
-        juce::Rectangle<float> (6.f, 78.f, 90.f, 328.f),
-        juce::Colour (0xFF1A1A1A));
-
-    // ── CENTRE knob panels (Row A + Row B) ────────────────────────────
-    IndustrialLookAndFeel::drawMetalPanel (g,
-        juce::Rectangle<float> (102.f, 78.f, 596.f, 158.f),
-        juce::Colour (0xFF202020));
-
-    IndustrialLookAndFeel::drawMetalPanel (g,
-        juce::Rectangle<float> (102.f, 244.f, 596.f, 158.f),
-        juce::Colour (0xFF202020));
-
-    // Section labels
-    g.setFont (IndustrialLookAndFeel::getIndustrialFont (9.f));
-    g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM));
-    g.drawText ("─── TAPE  CONTROLS ───",
-                juce::Rectangle<float> (104.f, 78.f, 280.f, 18.f),
-                juce::Justification::centredLeft);
-    g.drawText ("─── SIGNAL  PATH ───",
-                juce::Rectangle<float> (104.f, 244.f, 260.f, 18.f),
-                juce::Justification::centredLeft);
-
-    // ── RIGHT panel (oscilloscope) ────────────────────────────────────
-    IndustrialLookAndFeel::drawMetalPanel (g,
-        juce::Rectangle<float> (704.f, 78.f, 250.f, 328.f),
-        juce::Colour (0xFF151515));
-
-    // Oscilloscope label
-    g.setFont (IndustrialLookAndFeel::getIndustrialFont (9.f));
-    g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM));
-    g.drawText ("WAVEFORM",
-                juce::Rectangle<float> (704.f, 78.f, 250.f, 16.f),
+    // Version tag
+    g.setFont (IndustrialLookAndFeel::getIndustrialFont (8.f));
+    g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM).withAlpha (0.35f));
+    g.drawText ("v1.2", juce::Rectangle<float> (fW - 50.f, 0.f, 44.f, 52.f),
                 juce::Justification::centred);
 
-    // ── MODE strip ────────────────────────────────────────────────────
+    drawScrew (14.f, 26.f);
+    drawScrew (fW - 14.f, 26.f);
+
+    // ─────────────────────────────────────────────────────────────────
+    //  LEFT section  (x = 0..200, y = 52..410)
+    // ─────────────────────────────────────────────────────────────────
     IndustrialLookAndFeel::drawMetalPanel (g,
-        juce::Rectangle<float> (6.f, 412.f, fW - 12.f, 60.f),
+        juce::Rectangle<float> (0.f, 52.f, 200.f, 358.f),
         juce::Colour (0xFF181818));
 
-    g.setFont (IndustrialLookAndFeel::getIndustrialFont (9.f));
-    g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM));
-    g.drawText ("MODE SELECT", juce::Rectangle<float> (12.f, 413.f, 90.f, 14.f),
-                juce::Justification::centredLeft);
+    // VU sub-section separator + micro-labels (silk-screened)
+    g.setColour (juce::Colour (0xFF2A2A2A));
+    g.drawLine (6.f, 183.f, 194.f, 183.f, 1.f);
 
-    // ── Bottom screws ─────────────────────────────────────────────────
-    for (auto [sx, sy] : std::initializer_list<std::pair<float,float>> {
-            { 18.f, fH - 18.f }, { fW - 18.f, fH - 18.f } })
+    g.setFont (IndustrialLookAndFeel::getIndustrialFont (7.f));
+    g.setColour (juce::Colours::black.withAlpha (0.5f));     // shadow
+    g.drawText ("IN",  juce::Rectangle<float> (9.f,   55.f, 88.f, 8.f), juce::Justification::centred);
+    g.drawText ("OUT", juce::Rectangle<float> (105.f,  55.f, 88.f, 8.f), juce::Justification::centred);
+    g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM).withAlpha (0.55f));
+    g.drawText ("IN",  juce::Rectangle<float> (8.f,   54.f, 88.f, 8.f), juce::Justification::centred);
+    g.drawText ("OUT", juce::Rectangle<float> (104.f,  54.f, 88.f, 8.f), juce::Justification::centred);
+
+    // Corner screws for left panel
+    drawScrew (14.f, 64.f);
+    drawScrew (186.f, 64.f);
+    drawScrew (14.f, 400.f);
+    drawScrew (186.f, 400.f);
+
+    // ─────────────────────────────────────────────────────────────────
+    //  CENTER section  (x = 200..420, y = 52..410)
+    // ─────────────────────────────────────────────────────────────────
+    IndustrialLookAndFeel::drawMetalPanel (g,
+        juce::Rectangle<float> (200.f, 52.f, 220.f, 358.f),
+        juce::Colour (0xFF151515));
+
+    // Separator + label between dial and oscilloscope
+    g.setColour (juce::Colour (0xFF252525));
+    g.drawLine (204.f, 307.f, 416.f, 307.f, 1.f);
+
+    g.setFont (IndustrialLookAndFeel::getIndustrialFont (7.f));
+    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    g.drawText ("WAVEFORM", juce::Rectangle<float> (205.f, 310.f, 216.f, 9.f),
+                juce::Justification::centred);
+    g.setColour (juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM).withAlpha (0.50f));
+    g.drawText ("WAVEFORM", juce::Rectangle<float> (204.f, 309.f, 216.f, 9.f),
+                juce::Justification::centred);
+
+    // ─────────────────────────────────────────────────────────────────
+    //  RIGHT green section  (x = 420..960, y = 52..410)
+    // ─────────────────────────────────────────────────────────────────
+    IndustrialLookAndFeel::drawGreenPanel (g,
+        juce::Rectangle<float> (420.f, 52.f, 540.f, 358.f));
+
+    // Horizontal groove between knob rows
+    g.setColour (juce::Colours::black.withAlpha (0.45f));
+    g.fillRect (428.f, 219.f, 524.f, 3.f);
+    g.setColour (juce::Colours::white.withAlpha (0.05f));
+    g.drawHorizontalLine (222, 428.f, 952.f);
+
+    // Row labels (silk-screened — shadow + label)
+    g.setFont (IndustrialLookAndFeel::getIndustrialFont (7.5f));
+    for (int pass = 0; pass < 2; ++pass)
     {
-        g.setColour (juce::Colour (0xFF3A3A3A));
-        g.fillEllipse (sx - 4.f, sy - 4.f, 8.f, 8.f);
-        g.setColour (juce::Colour (0xFF0A0A0A));
-        g.drawEllipse (sx - 4.f, sy - 4.f, 8.f, 8.f, 1.f);
-        g.setColour (juce::Colour (0xFF555555));
-        g.drawLine (sx - 2.5f, sy, sx + 2.5f, sy, 1.f);
-        g.drawLine (sx, sy - 2.5f, sx, sy + 2.5f, 1.f);
+        const float off = pass == 0 ? 1.f : 0.f;
+        g.setColour (pass == 0 ? juce::Colours::black.withAlpha (0.50f)
+                               : juce::Colour (IndustrialLookAndFeel::COL_WHITE).withAlpha (0.22f));
+        g.drawText ("EQ & MIX",
+                    juce::Rectangle<float> (424.f + off, 54.f + off, 200.f, 9.f),
+                    juce::Justification::centredLeft);
+        g.drawText ("TAPE MODULATION",
+                    juce::Rectangle<float> (424.f + off, 224.f + off, 260.f, 9.f),
+                    juce::Justification::centredLeft);
+    }
+
+    // Green panel corner screws
+    drawScrew (432.f, 64.f);
+    drawScrew (948.f, 64.f);
+    drawScrew (432.f, 400.f);
+    drawScrew (948.f, 400.f);
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Section groove seams (recessed physical joints)
+    // ─────────────────────────────────────────────────────────────────
+
+    // Header → Main body seam
+    g.setColour (juce::Colours::black.withAlpha (0.92f));
+    g.fillRect (0.f, 49.f, fW, 4.f);
+    g.setColour (juce::Colours::white.withAlpha (0.06f));
+    g.drawHorizontalLine (53, 0.f, fW);
+
+    // Main body → Footer seam
+    g.setColour (juce::Colours::black.withAlpha (0.92f));
+    g.fillRect (0.f, 407.f, fW, 4.f);
+    g.setColour (juce::Colours::white.withAlpha (0.06f));
+    g.drawHorizontalLine (411, 0.f, fW);
+
+    // Left | Center vertical groove seam
+    g.setColour (juce::Colours::black.withAlpha (0.92f));
+    g.fillRect (197.f, 52.f, 5.f, 358.f);
+    g.setColour (juce::Colours::white.withAlpha (0.07f));
+    g.drawLine (202.f, 52.f, 202.f, 410.f, 1.f);
+
+    // Center | Green vertical groove seam
+    g.setColour (juce::Colours::black.withAlpha (0.92f));
+    g.fillRect (417.f, 52.f, 5.f, 358.f);
+    g.setColour (juce::Colours::white.withAlpha (0.07f));
+    g.drawLine (422.f, 52.f, 422.f, 410.f, 1.f);
+
+    // ─────────────────────────────────────────────────────────────────
+    //  FOOTER strip  (y = 410..460, h = 50)
+    // ─────────────────────────────────────────────────────────────────
+    IndustrialLookAndFeel::drawMetalPanel (g,
+        juce::Rectangle<float> (0.f, 410.f, fW, 50.f),
+        juce::Colour (0xFF1A1A1A));
+
+    drawScrew (18.f, 435.f);
+    drawScrew (fW - 18.f, 435.f);
+
+    // Footer text (engraved look — dark shadow offset below)
+    for (int pass = 0; pass < 2; ++pass)
+    {
+        const float off = pass == 0 ? 1.f : 0.f;
+        g.setFont (IndustrialLookAndFeel::getIndustrialFont (7.f));
+        g.setColour (pass == 0 ? juce::Colours::black.withAlpha (0.6f)
+                               : juce::Colour (IndustrialLookAndFeel::COL_LABEL_DIM).withAlpha (0.22f));
+        g.drawText ("OBSTACLE SPACE ECHO  ·  RE-201 STYLE TAPE DELAY",
+                    juce::Rectangle<float> (200.f + off, 410.f + off, 560.f, 50.f),
+                    juce::Justification::centred);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Outer plugin frame / bezel  (physical depth illusion)
+    // ─────────────────────────────────────────────────────────────────
+
+    // Top & left bright edge (light source from top-left)
+    g.setColour (juce::Colours::white.withAlpha (0.13f));
+    g.drawLine (0.f, 0.f, fW, 0.f, 2.f);
+    g.drawLine (0.f, 0.f, 0.f, fH, 2.f);
+
+    // Bottom & right dark edge (shadow)
+    g.setColour (juce::Colours::black.withAlpha (0.85f));
+    g.drawLine (0.f, fH - 1.f, fW, fH - 1.f, 2.f);
+    g.drawLine (fW - 1.f, 0.f, fW - 1.f, fH, 2.f);
+
+    // ─────────────────────────────────────────────────────────────────
+    //  Vignette overlay  (dark radial gradient on corners)
+    // ─────────────────────────────────────────────────────────────────
+    {
+        juce::ColourGradient vignette (
+            juce::Colours::transparentBlack, fW * 0.5f, fH * 0.5f,
+            juce::Colours::black.withAlpha (0.38f), 0.f, 0.f,
+            true);  // radial = true
+        g.setGradientFill (vignette);
+        g.fillRect (0.f, 0.f, fW, fH);
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  resized
+//  resized  — place all child components
 // ─────────────────────────────────────────────────────────────────────────────
 void SpaceEchoAudioProcessorEditor::resized()
 {
-    // ── Header buttons ────────────────────────────────────────────────
-    // FREEZE / PING-PONG in the centre of the header
-    freezeBtn  .setBounds (330, 14, 100, 42);
-    pingpongBtn.setBounds (440, 14, 120, 42);
-    testToneBtn.setBounds (W - 182, 14, 110, 42);
+    // ── Header buttons ───────────────────────────────────────────────
+    freezeBtn  .setBounds (330,     9, 110, 34);
+    pingpongBtn.setBounds (448,     9, 130, 34);
+    testToneBtn.setBounds (W - 112, 9, 102, 34);
 
-    // ── VU meters ─────────────────────────────────────────────────────
-    vuIn .setBounds (10,  86, 32, 250);
-    vuOut.setBounds (58,  86, 32, 250);
+    // ── LEFT panel ───────────────────────────────────────────────────
 
-    // ── Tape reels ────────────────────────────────────────────────────
-    tapeReels.setBounds (8, 340, 88, 62);
+    // Analog VU meters (88 × 120, side by side with 8px gap)
+    vuIn .setBounds (8,   62, 88, 116);
+    vuOut.setBounds (104, 62, 88, 116);
 
-    // ── Oscilloscope ──────────────────────────────────────────────────
-    oscilloscope.setBounds (710, 98, 238, 148);
+    // Three control knobs: INPUT, RATE, INTENSITY (compact, 64px slots)
+    layoutKnobRow ({ knobInput.get(), knobRepeat.get(), knobIntensity.get() },
+                   { 4, 186, 192, 116 }, 4);
 
-    // ── Knob Row A (5 knobs: Input, Rate, Intensity, Bass, Treble) ────
-    const juce::Rectangle<int> rowA (104, 82, 594, 154);
-    layoutKnobRow ({ knobInput.get(), knobRepeat.get(), knobIntensity.get(),
-                     knobBass.get(), knobTreble.get() }, rowA);
+    // ── CENTER panel ─────────────────────────────────────────────────
 
-    // ── Knob Row B (6 knobs: Wow, Sat, Echo, Reverb, Noise, Shimmer) ─
-    const juce::Rectangle<int> rowB (104, 248, 594, 154);
-    layoutKnobRow ({ knobWow.get(), knobSat.get(), knobEcho.get(),
-                     knobReverb.get(), knobNoise.get(), knobShimmer.get() }, rowB);
+    // Large rotary mode selector
+    modeSelector.setBounds (200, 54, 220, 248);
 
-    // ── Mode selector ─────────────────────────────────────────────────
-    modeSelector.setBounds (10, 424, W - 20, 40);
+    // CRT oscilloscope below the dial
+    oscilloscope.setBounds (204, 320, 212, 86);
+
+    // ── RIGHT green panel — 4 + 4 knobs in two rows ──────────────────
+
+    // Row 1: EQ & Mix controls
+    layoutKnobRow ({ knobBass.get(), knobTreble.get(), knobEcho.get(), knobReverb.get() },
+                   { 420, 64, 540, 153 }, 8);
+
+    // Row 2: Tape modulation controls
+    layoutKnobRow ({ knobWow.get(), knobSat.get(), knobNoise.get(), knobShimmer.get() },
+                   { 420, 228, 540, 176 }, 8);
+
+    // ── FOOTER ───────────────────────────────────────────────────────
+
+    // Animated tape reels (left of footer)
+    tapeReels.setBounds (38, 413, 152, 44);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -325,7 +473,7 @@ void SpaceEchoAudioProcessorEditor::layoutKnobRow (
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  timerCallback — update meters + oscilloscope + reel animation
+//  timerCallback — update meters, oscilloscope, reel animation
 // ─────────────────────────────────────────────────────────────────────────────
 void SpaceEchoAudioProcessorEditor::timerCallback()
 {
@@ -339,13 +487,11 @@ void SpaceEchoAudioProcessorEditor::timerCallback()
                           processor.getScopeWritePos());
 
     // ── Tape reel rotation ────────────────────────────────────────────
-    const float rateMs   = *processor.apvts.getRawParameterValue ("repeatRate");
-    const bool  frozen   = *processor.apvts.getRawParameterValue ("freeze") > 0.5f;
+    const float rateMs = *processor.apvts.getRawParameterValue ("repeatRate");
+    const bool  frozen = *processor.apvts.getRawParameterValue ("freeze") > 0.5f;
 
-    // Angular speed: faster RATE → slower-looking reel spin (tape consumed)
-    // Base: 2 rotations/sec at 150ms, scaled by rate
-    const float rps      = 1.5f / (rateMs * 0.001f); // rotations per second
-    const float dAngle   = rps * juce::MathConstants<float>::twoPi / 30.f; // 30 fps
+    const float rps    = 1.5f / (rateMs * 0.001f);
+    const float dAngle = rps * juce::MathConstants<float>::twoPi / 30.f;
 
     tapeReels.setFrozen (frozen);
     tapeReels.advance (dAngle);

@@ -8,20 +8,23 @@
 #include "UI/OscilloscopeComponent.h"
 
 /**
- *  SpaceEchoAudioProcessorEditor  v1.1
+ *  SpaceEchoAudioProcessorEditor  v1.3 — Roland RE-201 faithful layout
  *
- *  960 × 520 px industrial panel:
+ *  960 × 460 px — three-section panel:
  *
  *  ┌─────────────────────────────────────────────────────────────────────────┐
- *  │  HEADER  logo | [FREEZE] [PING-PONG]                  [TEST]     v1.1  │ h=72
- *  ├──────────┬────────────────────────────────────────┬────────────────────┤
- *  │  VU  IN  │  Row A (5 knobs):  Input·Rate·         │   OSCILLOSCOPE     │
- *  │  VU OUT  │    Intensity·Bass·Treble                │   (CRT phosphor)   │
- *  │          ├────────────────────────────────────────┤                    │
- *  │  [TAPE   │  Row B (6 knobs):  Wow·Sat·            │                    │
- *  │  REELS]  │    Echo·Reverb·Noise·Shimmer            │                    │
- *  ├──────────┴────────────────────────────────────────┴────────────────────┤
- *  │  MODE SELECTOR  (12 positions)                                          │ h=60
+ *  │  HEADER  ● OBSTACLE  SPACE ECHO  [FREEZE] [PING-PONG]       [TEST] v1.2│ h=52
+ *  ├──────────────┬──────────────────┬──────────────────────────────────────┤
+ *  │  BLACK LEFT  │  CENTER (dark)   │  GREEN RIGHT PANEL                   │
+ *  │  w=200       │  w=220           │  w=540                               │
+ *  │              │                  │                                      │
+ *  │  VU IN  OUT  │  ┌────────────┐  │  Row 1: BASS·TREBLE·ECHO·REVERB     │
+ *  │              │  │  MODE DIAL │  │  Row 2: WOW·SAT·NOISE·SHIMMER       │
+ *  │  INPUT·RATE  │  │  (rotary)  │  │                                      │
+ *  │  INTENSITY   │  └────────────┘  │                                      │
+ *  │              │   [OSCILLOSCOPE] │                                      │
+ *  ├──────────────┴──────────────────┴──────────────────────────────────────┤
+ *  │  FOOTER  [TAPE REELS]                                              v1.2 │ h=50
  *  └─────────────────────────────────────────────────────────────────────────┘
  */
 class SpaceEchoAudioProcessorEditor : public juce::AudioProcessorEditor,
@@ -41,7 +44,7 @@ private:
 
     // ── Dimensions ───────────────────────────────────────────────────
     static constexpr int W = 960;
-    static constexpr int H = 520;
+    static constexpr int H = 460;
 
     // ── VU meters ─────────────────────────────────────────────────────
     VUMeter vuIn  { VUMeter::Orientation::Vertical, "IN"  };

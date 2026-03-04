@@ -3,7 +3,9 @@ project(SpaceEcho VERSION 1.0.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "")
+if(APPLE)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.13" CACHE STRING "")
+endif()
 
 # ─── Fetch JUCE ───────────────────────────────────────────────────────────────
 include(FetchContent)
@@ -14,13 +16,20 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE)
 FetchContent_MakeAvailable(JUCE)
 
+# ─── Formats: AU is macOS only ────────────────────────────────────────────────
+if(APPLE)
+    set(PLUGIN_FORMATS VST3 AU Standalone)
+else()
+    set(PLUGIN_FORMATS VST3 Standalone)
+endif()
+
 # ─── Plugin target ────────────────────────────────────────────────────────────
 juce_add_plugin(SpaceEcho
     COMPANY_NAME                "Obstacle"
     COMPANY_WEBSITE             ""
     PLUGIN_MANUFACTURER_CODE    Obst
     PLUGIN_CODE                 OSpE
-    FORMATS                     VST3 AU Standalone
+    FORMATS                     ${PLUGIN_FORMATS}
     PRODUCT_NAME                "Obstacle Space Echo"
     IS_SYNTH                    FALSE
     NEEDS_MIDI_INPUT            FALSE

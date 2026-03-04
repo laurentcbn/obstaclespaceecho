@@ -1,0 +1,50 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j4
+
+      - name: Upload VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: ObstacleSpaceEcho-Windows-VST3
+          path: build/SpaceEcho_artefacts/Release/VST3/
+
+      - name: Upload Standalone
+        uses: actions/upload-artifact@v4
+        with:
+          name: ObstacleSpaceEcho-Windows-Standalone
+          path: build/SpaceEcho_artefacts/Release/Standalone/
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release -j4
+
+      - name: Upload VST3 + AU
+        uses: actions/upload-artifact@v4
+        with:
+          name: ObstacleSpaceEcho-macOS
+          path: |
+            build/SpaceEcho_artefacts/Release/VST3/
+            build/SpaceEcho_artefacts/Release/AU/
+            build/SpaceEcho_artefacts/Release/Standalone/

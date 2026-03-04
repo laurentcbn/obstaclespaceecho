@@ -1,8 +1,9 @@
-name: Build
+name: Build & Release
 
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   workflow_dispatch:
 
 jobs:
@@ -17,17 +18,18 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j4
 
-      - name: Upload VST3
-        uses: actions/upload-artifact@v4
-        with:
-          name: ObstacleSpaceEcho-Windows-VST3
-          path: build/SpaceEcho_artefacts/Release/VST3/
+      - name: Zip artifacts
+        run: |
+          Compress-Archive -Path build/SpaceEcho_artefacts/Release/VST3/* -DestinationPath ObstacleSpaceEcho-Windows-VST3.zip
+          Compress-Archive -Path build/SpaceEcho_artefacts/Release/Standalone/* -DestinationPath ObstacleSpaceEcho-Windows-Standalone.zip
 
-      - name: Upload Standalone
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ObstacleSpaceEcho-Windows-Standalone
-          path: build/SpaceEcho_artefacts/Release/Standalone/
+          name: ObstacleSpaceEcho-Windows
+          path: |
+            ObstacleSpaceEcho-Windows-VST3.zip
+            ObstacleSpaceEcho-Windows-Standalone.zip
 
   build-macos:
     runs-on: macos-latest
@@ -40,11 +42,42 @@ jobs:
       - name: Build
         run: cmake --build build --config Release -j4
 
-      - name: Upload VST3 + AU
+      - name: Zip artifacts
+        run: |
+          zip -r ObstacleSpaceEcho-macOS-VST3.zip   build/SpaceEcho_artefacts/Release/VST3/
+          zip -r ObstacleSpaceEcho-macOS-AU.zip     build/SpaceEcho_artefacts/Release/AU/
+          zip -r ObstacleSpaceEcho-macOS-Standalone.zip build/SpaceEcho_artefacts/Release/Standalone/
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ObstacleSpaceEcho-macOS
           path: |
-            build/SpaceEcho_artefacts/Release/VST3/
-            build/SpaceEcho_artefacts/Release/AU/
-            build/SpaceEcho_artefacts/Release/Standalone/
+            ObstacleSpaceEcho-macOS-VST3.zip
+            ObstacleSpaceEcho-macOS-AU.zip
+            ObstacleSpaceEcho-macOS-Standalone.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-windows, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ObstacleSpaceEcho-Windows
+          path: dist/
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: ObstacleSpaceEcho-macOS
+          path: dist/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/**
+          generate_release_notes: true
